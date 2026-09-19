@@ -69,7 +69,7 @@ def run(run_id: str):
         checked = any(c.payload.get("cycle") == latest["cycle"] for c in checks)
         guidance = f"<div class=card><h2>Targeted feedback</h2><p>{html.escape(latest['feedback'])}</p><p><b>Likely gap:</b> {html.escape(latest.get('likely_gap') or 'Not specified')}</p><pre>{html.escape(latest.get('targeted_explanation') or '')}</pre><p><b>Try this:</b> {html.escape(latest.get('follow_up_question') or '')}</p></div>"
         if not checked:
-            confirmation = f"<div class=card><h2>Check the diagnosis</h2><p>Does this sound right, or did you simply misread the question?</p><form method=post action='/run/{run_id}/confirm'><input type=hidden name=cycle value='{latest['cycle']}'><button name=response value=confirmed>Yes, that sounds right</button> <button name=response value=rejected>I misread it / disagree</button></form></div>"
+            confirmation = f"<div class=card><h2>Check the diagnosis</h2><p>Does this sound right, or did you simply misread the question?</p><form method=post action='/run/{run_id}/confirm'><input type=hidden name=cycle value='{latest['cycle']}'><button name=response value=confirmed>Yes, that sounds right</button></form></div>"
             return page("Learn: " + topic["topic"], intro + guidance + confirmation + history_html(s, run_id))
     first_lesson = ""
     if not attempts and lesson:

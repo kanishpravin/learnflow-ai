@@ -1,163 +1,163 @@
-# Agentic Slice Kit
+# LearnFlow AI
 
-A starter kit for building a **working agentic slice** in two days.
+An AI tutor that teaches from your notes, then evaluates your understanding.
 
-Not a framework. Not a library. About 1,100 lines you are expected to read,
-understand, and edit — because the architecture is the thing being taught, and
-you cannot learn an architecture you have imported.
+## How It Works
 
-> **Status: spine complete. 64 tests — 61 of them run with no key and no
-> network; the three in `tests/test_integration.py` need a live key and a
-> reachable provider. `demo/` is next.**
+1. **Student Input**: Paste a topic and study notes
+2. **AI Lesson**: Get a short lesson based on your notes
+3. **Teach Back**: Explain the topic in your own words
+4. **Evaluation**: AI evaluates your explanation for gaps
+5. **Targeted Feedback**: Get explanations for concepts you missed
+6. **Follow-up Quiz**: Answer follow-up questions to master the concept
+7. **Cycle**: Up to 3 revision cycles to achieve mastery
+8. **Next Topic**: Unlock the next topic when mastered
 
----
+## Features
 
-## Start here
+- ✅ AI-powered lesson generation from student notes
+- ✅ Concept gap detection
+- ✅ Targeted explanation generation
+- ✅ Follow-up quiz generation
+- ✅ Retry limit enforcement (MAX_CYCLES=3)
+- ✅ State persistence with SQLite
+- ✅ Fallback mode when AI provider unavailable
+- ✅ Multi-topic learning path
+- ✅ "Learn Next Topic" button for progression
 
-Click **Open in Codespaces**. Nothing to install — no Python, no Node, no
-Docker. You need a browser and a GitHub account.
+## Tech Stack
 
+- **Backend**: FastAPI, Uvicorn
+- **AI**: OpenRouter API (Claude, GPT, etc.)
+- **Database**: SQLite (production-ready for PostgreSQL)
+- **Frontend**: HTML/CSS (server-rendered)
+
+## Setup
+
+### 1. Clone the Repository
 ```bash
-cp .env.example .env      # then paste the key from the registration desk
-python -m pytest          # should be green
+git clone https://github.com/YOUR_USERNAME/learnflow-ai.git
+cd learnflow-ai
 ```
 
-Only `OPENROUTER_API_KEY` is required. Everything else in `.env` is an upgrade
-you can add at hour four, not a blocker at hour zero.
+### 2. Create Virtual Environment
+```bash
+python -m venv venv
 
----
+# Windows
+venv\Scripts\activate
 
-## What "agentic" means here
-
-A single-prompt LLM wrapper does not qualify, however clever the prompt. A real
-agentic slice demonstrates at least one of:
-
-- **state persistence** across steps
-- **autonomous tool or API use**
-- **multi-step reasoning or decomposition**
-- **human-in-the-loop callback mechanics**
-
-Useful as that list is, one line does most of the sorting: **an agent is a
-workflow that can go backwards.** Straight through A → B → C is a pipeline,
-however many models are in it. The moment a later step can hand work back to an
-earlier one and the run carries on from there, you have the thing. That
-back-edge is the cheapest part to leave out and the most expensive to retrofit,
-so decide early where yours is.
-
-This kit demonstrates all four. [`docs/PRINCIPLES-BRIEF.md`](docs/PRINCIPLES-BRIEF.md)
-is the short version — the ideas, in a page or two, and the file to paste into a
-chat when you want a critic rather than an enthusiast.
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) is the long version: nine
-principles, tiered by build order, each anchored to the line of code it actually
-lives on.
-
-**Read the brief before you write anything.** It will save you the rewrite that
-hits teams on the second morning who start with prompts.
-
----
-
-## Who does what
-
-A team of four will not all do the same job, and the strongest teams split it
-three ways. This is a strong recommendation, not a rule - organise differently if
-you have a better idea, but decide deliberately rather than by drift.
-
-| | owns | reads |
-|---|---|---|
-| **Designer** | the problem and the spec - what it does, what makes an answer wrong, what it refuses | [`docs/DESIGNER.md`](docs/DESIGNER.md) |
-| **Builder** | the machinery - environment, the spine, `demo/flow.py`, unblocking everyone else | [`docs/BUILDER.md`](docs/BUILDER.md) |
-| **Verifier** | real people using it, the stress test, the design rationale | [`docs/VERIFIER.md`](docs/VERIFIER.md) |
-
-**Everyone starts in the same place.** Part one of
-[`docs/DESIGNER.md`](docs/DESIGNER.md) is a guided design session &mdash; about
-three hours, any frontier chat, no keys, nothing installed &mdash; and the whole
-team should be in it. It produces a spec for your own agent, which is near
-enough what a strong preliminary submission has to say. The roles start
-mattering on the first morning, not during the fortnight.
-
-The ideas the three guides assume are in
-[`docs/PRINCIPLES-BRIEF.md`](docs/PRINCIPLES-BRIEF.md) &mdash; short, and worth
-reading before any of them. [`docs/ON-THE-DAY.md`](docs/ON-THE-DAY.md) is the
-operational page: keys, money, deadlines, what the two error codes mean, and who
-to ask when something non-technical is in your way.
-
-**The Verifier role is not the consolation prize.** Roughly a third of what you are judged on is evidence that real people used
-your agent and that you changed it in response - and it is the part almost every
-team leaves until the last afternoon, by which point it is too late to do honestly.
-
----
-
-## Layout
-
-```
-slice/      THE SPINE — read this, edit it, do not treat it as a black box
-  records.py    what a run is made of                   stdlib   88
-  store.py      durable append-only state               stdlib  246
-  config.py     the one place .env is read              stdlib   64
-  budget.py     the fences: attempts and tokens         stdlib   94
-  llm.py        the ONE place a model is ever called            277
-  retrieve.py   chunk / embed / search, in the same db          138
-  callback.py   suspend on a human, resume, time out             81
-  runner.py     the state machine                               101
-  __init__.py   what this package is, and what it is not  stdlib   16
-
-demo/       THE DOMAIN — rewrite this for your own problem
-web/        the form a human expert answers on
-scripts/    doctor · bakeoff · sync_architecture
-tests/      six files — the store, the fences, the callbacks, the runner,
-            a check that ARCHITECTURE.md still points at real code, and
-            one live-key integration test
+# Mac/Linux
+source venv/bin/activate
 ```
 
-The split is the point. Swap `demo/` for your problem and keep the machinery.
+### 3. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
 
----
+### 4. Set Environment Variables
+Create a `.env` file in the project root:
+```
+OPENROUTER_API_KEY=your_api_key_here
+LEARNFLOW_DB=learnflow.db
+```
 
-## Three things that will bite you
+Get your OpenRouter API key: https://openrouter.ai/keys
 
-**Your Codespaces quota is finite, and how much you get depends on your plan.**
-A free GitHub account includes 120 core-hours a month; the Student Developer Pack
-upgrades you to Pro, which includes more. On the 2-core machine this repo asks
-for, 120 core-hours is 60 hours of actual use. **Check your own** at
-[github.com/settings/billing](https://github.com/settings/billing) — the
-Codespaces tab shows what you have used against what is included, and it is the
-only figure that is definitely right for you.
+### 5. Run the Server
+```bash
+python -m uvicorn app:app --reload --port 8001
+```
 
-For scale, measured on this repo in September 2026: **a two-hour working session
-on the 2-core machine costs 4.1 core-hours** — roughly 3% of a free account's
-monthly allowance, at $0.18 an hour. Storage over the same period was 0.28
-GB-hours, which is nothing. That is about thirty sessions a month before the free
-tier runs out, so a team has room for the event several times over.
+Visit: http://127.0.0.1:8001
 
-Billing lags a day or so, so a session you have just finished will not show up
-straight away.
+## Deployment
 
-What actually eats the allowance is not working, it is **walking away**. Closing
-the browser tab does not stop a codespace; it idles for 30 minutes first. Stop it
-from [github.com/codespaces](https://github.com/codespaces), and consider
-dropping the idle timeout to 5 minutes in your Codespaces settings. If you do get
-blocked, push your work to a branch and a teammate can open a fresh codespace on
-it.
+### Vercel (Easiest)
+```bash
+npm install -g vercel
+vercel --prod
+```
 
-**Your API key has a hard cap.** It is enforced, and it refuses a request
-*before* running it if the worst case would exceed your balance — so an
-oversized `max_tokens` produces a 402 while you still have credit. Leave
-`SLICE_MAX_TOKENS` where it is unless you know why you are changing it.
+### Railway (Recommended for databases)
+```bash
+npm install -g railway
+railway login
+railway init
+railway up
+```
 
-**Default to the cheap model.** `SLICE_MODEL` is Flash-class and will carry
-almost everything. `SLICE_ESCALATION_MODEL` costs roughly thirty times as much
-per token. Escalate for the one hard subproblem, deliberately — not by habit
-when something is not working and you are tired.
+### Render (Free tier available)
+1. Go to https://render.com
+2. Create new Web Service
+3. Connect your GitHub repo
+4. Set start command: `python -m uvicorn app:app --host 0.0.0.0 --port $PORT`
+5. Add environment variables
+6. Deploy
 
----
+### Docker
+```bash
+docker build -t learnflow-ai .
+docker run -p 8001:8000 -e OPENROUTER_API_KEY=your_key learnflow-ai
+```
 
-## The bar you are actually being judged against
+## Project Status
 
-Working code is necessary, not sufficient. You also owe: three fellow students
-who walked your flow with their feedback captured and one visible iteration; a
-recorded stress test where a classmate tried to break your agent, and the fix
-commit that answers it; a short design rationale saying what your agent does and
-where its limits are; and a repo someone else could pick up and continue.
+### ✅ Completed
+- Core infrastructure (runner, callbacks, LLM integration)
+- Schema definitions (QuizAttempt, HumanCheck, StudentTopicState)
+- Evaluator working with real LLM
+- Initial answer evaluation and concept gap detection
+- Human confirmation flow
+- Targeted explanation generation
+- Follow-up quiz generation
+- State transitions
+- Next topic unlock button
 
-Budget for that. Teams that treat the second morning as a feature deadline rather than a
-feedback deadline consistently ship the least convincing demos.
+### ⏳ In Progress
+- Follow-up mastery evaluation
+- Retry limits enforcement
+- Full state persistence
+
+### 📋 Planned
+- Quiz generator (dynamic generation)
+- Resume-after-close capability
+- Adversarial input testing
+- CLI integration
+- End-to-end validation
+
+## API Routes
+
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `/` | GET | Home page, create new session |
+| `/start` | POST | Begin lesson from topic + notes |
+| `/run/{run_id}` | GET | View lesson and evaluation state |
+| `/run/{run_id}/teach` | POST | Submit teach-back explanation |
+| `/run/{run_id}/confirm` | POST | Confirm gap diagnosis |
+
+## Project Structure
+
+```
+learnflow-ai/
+├── app.py                 # FastAPI app, routes, HTML rendering
+├── learnflow/
+│   ├── schema.py         # Pydantic models for evaluation
+│   ├── service.py        # AI evaluation & lesson generation
+│   └── ...
+├── slice/
+│   └── store.py          # SQLite storage layer
+├── requirements.txt      # Python dependencies
+├── .gitignore           # Git ignore rules
+├── README.md            # This file
+└── learnflow.db         # SQLite database (auto-created)
+```
+
+## License
+
+MIT
+
+## Author
+
+Kanish - Independent Web Developer
