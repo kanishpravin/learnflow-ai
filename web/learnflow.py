@@ -3,9 +3,11 @@ from __future__ import annotations
 import html
 import os
 from pathlib import Path
+from datetime import datetime
 
-from fastapi import FastAPI, Form
+from fastapi import FastAPI, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
+import pypdf
 
 from learnflow.schema import TeachBackEvaluation
 from learnflow.service import LearnFlowModelError, evaluate, teach
@@ -21,23 +23,55 @@ def store() -> Store:
     return Store(DB)
 
 
-STYLE = """<style>body{font:16px/1.55 system-ui,sans-serif;max-width:760px;margin:0 auto;padding:32px 18px;background:#f8fafc;color:#172033}.card{background:white;border:1px solid #dbe3ee;border-radius:14px;padding:22px;margin:16px 0}textarea,input{box-sizing:border-box;width:100%;font:inherit;padding:10px;border:1px solid #b9c6d8;border-radius:8px}textarea{min-height:130px}button{background:#4f46e5;color:white;border:0;border-radius:8px;padding:11px 16px;font-weight:700;cursor:pointer}.muted{color:#64748b}.tag{display:inline-block;background:#e0e7ff;color:#3730a3;border-radius:99px;padding:3px 9px;font-size:.8rem;font-weight:700}.good{color:#047857}.warn{color:#b45309}pre{white-space:pre-wrap;font-family:inherit;background:#f1f5f9;padding:12px;border-radius:8px}.btn-home{background:#10b981;margin-top:12px;display:inline-block;text-decoration:none}.btn-home:hover{background:#059669}a.btn-home{color:white}</style>"""
+STYLE = """<style>body{font:16px/1.55 system-ui,sans-serif;max-width:760px;margin:0 auto;padding:32px 18px;background:#f8fafc;color:#172033}.card{background:white;border:1px solid #dbe3ee;border-radius:14px;padding:22px;margin:16px 0}textarea,input{box-sizing:border-box;width:100%;font:inherit;padding:10px;border:1px solid #b9c6d8;border-radius:8px}textarea{min-height:130px}input[type=file]{padding:6px}button{background:#4f46e5;color:white;border:0;border-radius:8px;padding:11px 16px;font-weight:700;cursor:pointer}.muted{color:#64748b}.tag{display:inline-block;background:#e0e7ff;color:#3730a3;border-radius:99px;padding:3px 9px;font-size:.8rem;font-weight:700}.good{color:#047857}.warn{color:#b45309}pre{white-space:pre-wrap;font-family:inherit;background:#f1f5f9;padding:12px;border-radius:8px}.btn-home{background:#10b981;margin-top:12px;display:inline-block;text-decoration:none}.btn-home:hover{background:#059669}a.btn-home{color:white}.progress-container{background:#e0e7ff;border-radius:8px;height:24px;margin:16px 0;overflow:hidden}.progress-bar{background:#4f46e5;height:100%;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:12px;transition:width 0.3s}.progress-text{text-align:center;font-size:14px;color:#64748b;margin-bottom:8px}</style>"""
 
 
 def page(title: str, body: str) -> HTMLResponse:
     return HTMLResponse(f"<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>{html.escape(title)}</title>{STYLE}<h1>{html.escape(title)}</h1>{body}")
 
 
+def progress_bar(current: int, total: int) -> str:
+    """Generate a progress bar HTML"""
+    percentage = int((current / total) * 100)
+    return f"""<div class=progress-text>Progress: {current}/{total} cycles</div><div class=progress-container><div class=progress-bar style='width:{percentage}%'>{percentage}%</div></div>"""
+
+
 @app.get("/", response_class=HTMLResponse)
 def home():
     runs = store().list_runs()
-    history = "".join(f"<li><a href='/run/{r['id']}'>{html.escape(r['id'])}</a> — {html.escape(r['state'])}</li>" for r in runs)
-    return page("LearnFlow AI", "<p class=muted>LearnFlow teaches from your notes first, then evaluates your explanation—not just a final answer.</p><div class=card><form method=post action=/start><label>Topic<br><input name=topic required placeholder='e.g. Ohm's Law'></label><p><label>Notes or textbook excerpt<br><textarea name=notes required placeholder='Paste the material you studied…'></textarea></label></p><button>Begin lesson</button></form></div><h2>Saved learning sessions</h2><ul>" + (history or "<li class=muted>None yet.</li>") + "</ul>")
+    history_items = []
+    for r in runs:
+        run_id = r['id']
+        topic_data = store().latest(run_id, "topic")
+        topic_name = topic_data["topic"] if topic_data else "Unknown"
+        
+        # Convert timestamp to readable date
+        created_at = r['created_at']
+        date_str = datetime.fromtimestamp(created_at).strftime("%b %d, %Y %I:%M %p")
+        
+        history_items.append(f"<li><a href='/run/{html.escape(run_id)}'>{html.escape(date_str)} — {html.escape(topic_name)}</a> <span class=muted>({html.escape(r['state'])})</span></li>")
+    
+    history = "".join(history_items)
+    return page("LearnFlow AI", "<p class=muted>LearnFlow teaches from your notes first, then evaluates your explanation—not just a final answer.</p><div class=card><form method=post action=/start enctype=multipart/form-data><label>Topic<br><input name=topic required placeholder='e.g. Ohm's Law'></label><p><label>Notes or textbook excerpt<br><textarea name=notes placeholder='Paste text here…'></textarea></label></p><p><label>Or upload PDF<br><input type=file name=pdf_file accept=.pdf></label></p><button>Begin lesson</button></form></div><h2>Saved learning sessions</h2><ul>" + (history or "<li class=muted>None yet.</li>") + "</ul>")
 
 
 @app.post("/start")
-def start(topic: str = Form(...), notes: str = Form(...)):
-    s = store(); run_id = s.create_run("learnflow", {"topic": topic.strip()})
+async def start(topic: str = Form(...), notes: str = Form(default=""), pdf_file: UploadFile = File(default=None)):
+    s = store()
+    
+    # If PDF uploaded, extract text
+    if pdf_file and pdf_file.filename:
+        try:
+            pdf_reader = pypdf.PdfReader(pdf_file.file)
+            pdf_text = "\n".join([page.extract_text() for page in pdf_reader.pages])
+            notes = pdf_text if pdf_text.strip() else notes
+        except Exception as e:
+            return page("Error", f"<p>Failed to read PDF: {html.escape(str(e))}</p>")
+    
+    if not notes.strip():
+        return page("Error", "<p>Please provide notes or upload a PDF.</p>")
+    
+    run_id = s.create_run("learnflow", {"topic": topic.strip()})
     s.append(run_id, "topic", {"topic": topic.strip(), "notes": notes.strip()}, "student")
     try:
         lesson = teach(topic=topic.strip(), notes=notes.strip())
@@ -58,18 +92,20 @@ def run(run_id: str):
     latest = s.latest(run_id, "evaluation")
     lesson = s.latest(run_id, "lesson")
     title = html.escape(topic["topic"])
-    intro = f"<p><span class=tag>Cycle {len(attempts) + 1} of {MAX_CYCLES}</span></p>"
+    current_cycle = len(attempts) + 1
+    intro = f"<p><span class=tag>Cycle {current_cycle} of {MAX_CYCLES}</span></p>{progress_bar(len(attempts), MAX_CYCLES)}"
+    
     if latest and latest["understanding"] == "mastered":
-        return page("Mastered: " + topic["topic"], f"<div class=card><h2 class=good>You demonstrated understanding.</h2><p>{html.escape(latest['feedback'])}</p><p>Your next topic is now unlocked.</p><a href='/' class=btn-home><button class=btn-home>Learn Next Topic</button></a></div>" + history_html(s, run_id))
+        return page("Mastered: " + topic["topic"], f"{progress_bar(MAX_CYCLES, MAX_CYCLES)}<div class=card><h2 class=good>You demonstrated understanding.</h2><p>{html.escape(latest['feedback'])}</p><p>Your next topic is now unlocked.</p><a href='/' class=btn-home><button class=btn-home>Learn Next Topic</button></a></div>" + history_html(s, run_id))
     if latest and len(attempts) >= MAX_CYCLES:
-        return page("Needs more revision: " + topic["topic"], f"<div class=card><h2 class=warn>Revision limit reached</h2><p>{html.escape(latest['feedback'])}</p><p>Focus on: {html.escape(latest.get('likely_gap') or 'the key idea')}.</p></div>" + history_html(s, run_id))
+        return page("Needs more revision: " + topic["topic"], f"{progress_bar(MAX_CYCLES, MAX_CYCLES)}<div class=card><h2 class=warn>Revision limit reached</h2><p>{html.escape(latest['feedback'])}</p><p>Focus on: {html.escape(latest.get('likely_gap') or 'the key idea')}.</p></div>" + history_html(s, run_id))
     guidance = ""
     if latest:
         checks = s.history(run_id, "human_check")
         checked = any(c.payload.get("cycle") == latest["cycle"] for c in checks)
         guidance = f"<div class=card><h2>Targeted feedback</h2><p>{html.escape(latest['feedback'])}</p><p><b>Likely gap:</b> {html.escape(latest.get('likely_gap') or 'Not specified')}</p><pre>{html.escape(latest.get('targeted_explanation') or '')}</pre><p><b>Try this:</b> {html.escape(latest.get('follow_up_question') or '')}</p></div>"
         if not checked:
-            confirmation = f"<div class=card><h2>Check the diagnosis</h2><p>Does this sound right, or did you simply misread the question?</p><form method=post action='/run/{run_id}/confirm'><input type=hidden name=cycle value='{latest['cycle']}'><button name=response value=confirmed>Yes, that sounds right</button></form></div>"
+            confirmation = f"<div class=card><h2>Check the diagnosis</h2><p>Does this sound right, or did you simply misread the question?</p><form method=post action='/run/{run_id}/confirm'><input type=hidden name=cycle value='{latest['cycle']}'><button name=response value=confirmed>Yes, that sounds right</button> <button name=response value=rejected>I misread it / disagree</button></form></div>"
             return page("Learn: " + topic["topic"], intro + guidance + confirmation + history_html(s, run_id))
     first_lesson = ""
     if not attempts and lesson:
